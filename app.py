@@ -3,154 +3,210 @@ import pandas as pd
 from datetime import datetime
 from streamlit_gsheets import GSheetsConnection
 
-# --- CONFIGURACIÓN E INTERFAZ ---
-st.set_page_config(page_title="Alameda del Río - Predicación", layout="wide", page_icon="✉️")
+# --- CONFIGURACIÓN DE PÁGINA ---
+st.set_page_config(
+    page_title="Alameda del Río | Predicación",
+    page_icon="🏠",
+    layout="centered"
+)
 
-# CSS personalizado para mejorar la estética
+# --- ESTILOS CSS PERSONALIZADOS (MODERNO) ---
 st.markdown("""
     <style>
-    .main { background-color: #f5f7f9; }
-    .stButton>button { width: 100%; border-radius: 10px; height: 3em; background-color: #4CAF50; color: white; border: none; }
-    .stMetric { background-color: #ffffff; padding: 15px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-    .card { 
-        background-color: #ffffff; 
-        padding: 20px; 
-        border-radius: 15px; 
-        border-left: 5px solid #4CAF50; 
-        margin-bottom: 10px; 
-        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        color: #31333F;
+    /* Fondo y fuente */
+    .stApp {
+        background-color: #F8F9FA;
+    }
+    
+    /* Sidebar */
+    [data-testid="stSidebar"] {
+        background-color: #FFFFFF;
+        border-right: 1px solid #E0E0E0;
+    }
+
+    /* Tarjetas de Apartamentos */
+    .apto-card {
+        background-color: white;
+        padding: 20px;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        border: 1px solid #F0F2F6;
+        margin-bottom: 15px;
+        transition: transform 0.2s;
+    }
+    .apto-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 12px rgba(0,0,0,0.1);
+    }
+
+    /* Badge de Conjunto */
+    .conjunto-badge {
+        background-color: #E3F2FD;
+        color: #1976D2;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 0.85em;
+        font-weight: 600;
+        margin-bottom: 10px;
+        display: inline-block;
+    }
+
+    /* Estadísticas */
+    .metric-container {
+        background-color: white;
+        padding: 15px;
+        border-radius: 12px;
+        border: 1px solid #E0E0E0;
+        text-align: center;
+    }
+
+    /* Botones */
+    .stButton>button {
+        border-radius: 8px;
+        font-weight: 500;
+        transition: all 0.3s;
+    }
+    
+    /* Títulos */
+    h1, h2, h3 {
+        color: #262730;
+        font-family: 'Inter', sans-serif;
     }
     </style>
     """, unsafe_allow_html=True)
 
-# --- CONEXIÓN ---
+# --- CONEXIÓN Y DATOS ---
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 def load_data():
-    # ttl=0 para asegurar que los datos se recarguen de la nube cada vez
     return conn.read(ttl=0)
 
 df = load_data()
 
-# --- NAVEGACIÓN ---
+# --- BARRA LATERAL (NAVEGACIÓN) ---
 with st.sidebar:
-    st.image("https://cdn-icons-png.flaticon.com/512/3062/3062634.png", width=100)
-    st.title("Menú Principal")
-    menu = st.radio("Acciones:", ["📊 Estadísticas", "✍️ Generar Cartas", "🚚 Entregar Cartas"])
-    st.info("Gestión de territorio Alameda del Río.")
+    st.markdown("<h2 style='text-align: center;'>📋 Menú</h2>", unsafe_allow_html=True)
+    menu = st.radio(
+        "",
+        ["🏠 Inicio", "✍️ Escribir Cartas", "📦 Pendientes Entrega", "📊 Historial"],
+        label_visibility="collapsed"
+    )
+    st.divider()
+    st.caption("Alameda del Río - Gestión de Territorio")
 
-# --- MÓDULO 1: ESTADÍSTICAS ---
-if menu == "📊 Estadísticas":
-    st.title("Dashboard de Progreso")
+# --- MÓDULO 1: INICIO Y ESTADÍSTICAS ---
+if menu == "🏠 Inicio":
+    st.markdown("# Bienvenido 👋")
+    st.markdown("Gestión de cartas para el territorio de Alameda del Río.")
     
-    total = len(df)
-    # Manejar posibles valores nulos en el estado
+    # Cálculos
+    total_aptos = len(df)
     elaboradas = len(df[df['estado'] == "elaborada"])
     entregadas = len(df[df['estado'] == "entregada"])
-    disponibles = total - elaboradas - entregadas
-    porcentaje = (entregadas / total) if total > 0 else 0
-
-    # Métricas principales
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Total Apartamentos", f"{total:,}")
-    c2.metric("Disponibles", f"{disponibles:,}")
-    c3.metric("En Proceso ✍️", f"{elaboradas}")
-    c4.metric("Entregadas ✅", f"{entregadas}", f"{porcentaje:.2%}")
-
-    st.subheader("Progreso de Cobertura Total")
-    st.progress(porcentaje)
-
-    # Gráfico por conjunto
-    st.subheader("Avance por Conjunto Residencial")
-    chart_df = df[df['estado'].isin(['elaborada', 'entregada'])]
-    if not chart_df.empty:
-        chart_data = chart_df.groupby(['conjunto', 'estado']).size().unstack().fillna(0)
-        st.bar_chart(chart_data)
-    else:
-        st.info("Aún no hay cartas procesadas para mostrar en el gráfico.")
-
-# --- MÓDULO 2: GENERAR CARTAS ---
-elif menu == "✍️ Generar Cartas":
-    st.title("Generar Nuevas Cartas")
+    porcentaje = (entregadas / total_aptos) if total_aptos > 0 else 0
     
-    # Filtrar disponibles
-    aptos_libres = df[(df['estado'].isna()) | (df['estado'] == "")].copy()
+    # Layout de métricas
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.markdown(f"<div class='metric-container'><small>Total</small><h3>{total_aptos:,}</h3></div>", unsafe_allow_html=True)
+    with col2:
+        st.markdown(f"<div class='metric-container'><small>Escritas</small><h3 style='color:#FBC02D;'>{elaboradas}</h3></div>", unsafe_allow_html=True)
+    with col3:
+        st.markdown(f"<div class='metric-container'><small>Entregadas</small><h3 style='color:#4CAF50;'>{entregadas}</h3></div>", unsafe_allow_html=True)
 
-    if aptos_libres.empty:
-        st.warning("¡Increíble! No quedan apartamentos disponibles en el territorio.")
-    else:
-        tab_auto, tab_manual = st.tabs(["🎲 Selección Aleatoria", "🖱️ Selección Manual"])
+    st.markdown("---")
+    st.subheader("Progreso del territorio")
+    st.progress(porcentaje)
+    st.write(f"Avance actual: **{porcentaje:.2%}**")
 
-        with tab_auto:
-            n = st.number_input("¿Cuántas cartas vas a escribir?", min_value=1, max_value=40, value=5)
-            if st.button("Sugerir Apartamentos"):
-                # Máximo uno por conjunto para variar
-                seleccion = aptos_libres.sample(frac=1).drop_duplicates(subset='conjunto').head(n)
-                st.session_state.temp_cartas = seleccion
+# --- MÓDULO 2: ESCRIBIR CARTAS ---
+elif menu == "✍️ Escribir Cartas":
+    st.subheader("✍️ Generar nuevas cartas")
+    
+    aptos_disponibles = df[df['estado'].isna() | (df['estado'] == "")].copy()
+    
+    tab_auto, tab_manual = st.tabs(["Selección Inteligente", "Selección Manual"])
+    
+    with tab_auto:
+        st.info("Esta opción elige apartamentos al azar, asegurando que sean de conjuntos distintos.")
+        cantidad = st.select_slider("¿Cuántas cartas vas a escribir?", options=[1, 2, 5, 10, 15, 20])
+        
+        if st.button("🎲 Sugerir Apartamentos", use_container_width=True):
+            # Lógica: Mezclar, quitar duplicados por conjunto y tomar N
+            sugerencia = aptos_disponibles.sample(frac=1).drop_duplicates(subset='conjunto').head(cantidad)
+            st.session_state.cartas_hoy = sugerencia
 
-        with tab_manual:
-            st.write("Busca apartamentos por nombre de conjunto o número:")
-            aptos_libres['label'] = aptos_libres['conjunto'] + " - Torre " + aptos_libres['torre'].astype(str) + " - Apto " + aptos_libres['apto'].astype(str)
-            seleccion_manual = st.multiselect("Selecciona los apartamentos:", aptos_libres['label'].tolist())
-            
-            if st.button("Usar Selección Manual"):
-                st.session_state.temp_cartas = aptos_libres[aptos_libres['label'].isin(seleccion_manual)]
+    with tab_manual:
+        aptos_disponibles['search_label'] = aptos_disponibles['conjunto'] + " - Torre " + aptos_disponibles['torre'].astype(str) + " - Apto " + aptos_disponibles['apto'].astype(str)
+        seleccionados = st.multiselect("Busca apartamentos específicos:", aptos_disponibles['search_label'].tolist())
+        
+        if st.button("📌 Confirmar Selección Manual", use_container_width=True):
+            st.session_state.cartas_hoy = aptos_disponibles[aptos_disponibles['search_label'].isin(seleccionados)]
 
-        # Confirmación de guardado
-        if 'temp_cartas' in st.session_state and not st.session_state.temp_cartas.empty:
-            st.subheader("Lista para escribir:")
-            for i, row in st.session_state.temp_cartas.iterrows():
-                st.markdown(f"""
-                    <div class="card">
-                    <b>Conjunto:</b> {row['conjunto']}<br>
+    # Mostrar para confirmar
+    if 'cartas_hoy' in st.session_state and not st.session_state.cartas_hoy.empty:
+        st.divider()
+        st.markdown("### 📋 Lista para escribir:")
+        for _, row in st.session_state.cartas_hoy.iterrows():
+            st.markdown(f"""
+                <div class="apto-card">
+                    <span class="conjunto-badge">{row['conjunto']}</span><br>
                     <b>Dirección:</b> {row['direccion']}<br>
                     <b>Ubicación:</b> Torre {row['torre']} - Apto {row['apto']}
-                    </div>
-                """, unsafe_allow_html=True)
+                </div>
+            """, unsafe_allow_html=True)
             
-            if st.button("Confirmar y Marcar como 'Elaborada'"):
-                fecha_hoy = datetime.now().strftime("%Y-%m-%d %H:%M")
-                for idx in st.session_state.temp_cartas.index:
-                    df.at[idx, 'estado'] = "elaborada"
-                    df.at[idx, 'fecha_elaborada'] = fecha_hoy
-                
-                # Quitar columna auxiliar si existe
-                if 'label' in df.columns: df.drop(columns=['label'], inplace=True)
-                
-                conn.update(data=df)
-                st.success("¡Cartas registradas correctamente!")
-                st.balloons()
-                del st.session_state.temp_cartas
-                st.rerun()
+        if st.button("✅ MARCAR COMO REALIZADAS", type="primary", use_container_width=True):
+            fecha = datetime.now().strftime("%Y-%m-%d")
+            for idx in st.session_state.cartas_hoy.index:
+                df.at[idx, 'estado'] = "elaborada"
+                df.at[idx, 'fecha_elaborada'] = fecha
+            
+            # Quitar columna auxiliar si existe
+            cols_to_save = [c for c in df.columns if c != 'search_label']
+            conn.update(data=df[cols_to_save])
+            
+            st.success("¡Cartas registradas!")
+            del st.session_state.cartas_hoy
+            st.rerun()
 
-# --- MÓDULO 3: ENTREGA ---
-elif menu == "🚚 Entregar Cartas":
-    st.title("Cartas Pendientes por Entregar")
-    
+# --- MÓDULO 3: ENTREGAR ---
+elif menu == "📦 Pendientes Entrega":
+    st.subheader("🚚 Cartas por entregar")
     pendientes = df[df['estado'] == "elaborada"]
     
     if pendientes.empty:
         st.info("No hay cartas pendientes de entrega.")
     else:
-        st.write(f"Tienes **{len(pendientes)}** cartas listas para llevar.")
-        
         for i, row in pendientes.iterrows():
             with st.container():
-                col_info, col_btn = st.columns([4, 1])
-                with col_info:
+                col_text, col_action = st.columns([3, 1])
+                with col_text:
                     st.markdown(f"""
-                        <div class="card">
-                        <span style="font-size: 1.1em; color: #1f77b4;"><b>{row['conjunto']}</b></span><br>
-                        📍 {row['direccion']} | Torre {row['torre']} - <b>Apto {row['apto']}</b><br>
-                        <small>Elaborada el: {row['fecha_elaborada']}</small>
+                        <div class="apto-card">
+                            <span class="conjunto-badge">{row['conjunto']}</span><br>
+                            <b>Apto {row['apto']}</b> - Torre {row['torre']}<br>
+                            <small>Escrita el: {row['fecha_elaborada']}</small>
                         </div>
                     """, unsafe_allow_html=True)
-                with col_btn:
-                    st.write(" ")
-                    if st.button("Entregada", key=f"entrega_{row['id']}"):
+                with col_action:
+                    st.write("") # Espaciador
+                    if st.button("Entregado ✅", key=f"ent_{row['id']}", use_container_width=True):
                         df.at[i, 'estado'] = "entregada"
-                        df.at[i, 'fecha_entregada'] = datetime.now().strftime("%Y-%m-%d %H:%M")
+                        df.at[i, 'fecha_entregada'] = datetime.now().strftime("%Y-%m-%d")
                         conn.update(data=df)
-                        st.toast(f"Apto {row['apto']} marcado como entregado")
                         st.rerun()
+
+# --- MÓDULO 4: HISTORIAL ---
+elif menu == "📊 Historial":
+    st.subheader("📜 Últimas cartas entregadas")
+    historial = df[df['estado'] == "entregada"].sort_values(by='fecha_entregada', ascending=False)
+    
+    if historial.empty:
+        st.write("Aún no hay historial de entregas.")
+    else:
+        st.dataframe(
+            historial[['fecha_entregada', 'conjunto', 'torre', 'apto']],
+            use_container_width=True,
+            hide_index=True
+        )
